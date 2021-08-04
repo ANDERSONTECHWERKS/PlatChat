@@ -2,15 +2,25 @@ package pcServer;
 
 import java.util.Date;
 
-public class ChatMessage {
-	String message = "";
-	String username = "";
-	Date date = null;
+import transponderTCP.*;
+
+public class ChatMessage extends ClientMessage<String>{
+	/**
+	 * 
+	 */
+	private static final long serialVersionUID = 1L;
+
+	public ChatMessage(String message) {
+		super.setPayload(message);
+	}
 	
-	ChatMessage(String message, String username){
-		this.message = message;
-		this.username = username;
-		date = new Date();
+	@Override
+	public String toString() {
+		String result = "";
+		
+		result += "Message: " + super.getPayload().toString() +"\n";
+		result += "Timestamp: " + super.getTimestamp() + "\n";
+		return result;
 	}
 	
 }

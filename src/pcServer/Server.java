@@ -1,5 +1,5 @@
 package pcServer;
-
+import transponderTCP.*;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -12,19 +12,46 @@ import java.net.UnknownHostException;
 import java.util.HashSet;
 import java.util.Scanner;
 
-import transponder.*;
+public class Server implements Runnable{
+	String welcomeMessage = "PLATCHAT_EXPERIMENTAL! WELCOME!";
 
-public class Server {
 	ServerSocket serverSock = null;
+	
 	Socket clientSock = null;
+	
 	TransponderTCP servTransponder = null;
+	Thread transponderThread = null;
+	
 	HashSet<Socket> clientSockets = null;
+	
 	boolean debugFlag = false;
-
+	boolean stopFlag = false;
+	
 	public Server() {
 		this.menuPrompt();
 		this.servTransponder = new TransponderTCP(this.serverSock);
-
+		ChatState pcState = new ChatState();
+	}
+	
+	public Server(ServerSocket servSock) {
+		
+		this.serverSock = servSock;
+		this.servTransponder = new TransponderTCP(this.serverSock);
+		
+		ChatState initPCState = new ChatState();
+		
+		ChatMessage welcomeMessage = new ChatMessage(this.welcomeMessage);
+		
+		initPCState.addMessage(welcomeMessage);
+		
+		this.servTransponder.setServerMessage(initPCState);
+		
+		this.transponderThread = new Thread(this.servTransponder);
+	}
+	
+	public void listen() {
+		this.transponderThread.start();
+		
 	}
 	
 	public static boolean isPlayerPlat(String battleTag, int btCode, boolean debugFlag) {
@@ -123,6 +150,8 @@ public class Server {
 		String prompt3 = "Please enter your Battle Tag (Excluding the code):";
 		String prompt4 = "Please enter your Battle Tag Code (Ex: #1234)";
 
+		System.out.println(intro);
+		
 		// Prompt for server listen ip
 		System.out.println(prompt1);
 		String ipAddrInp = inpScanner.nextLine();
@@ -168,5 +197,11 @@ public class Server {
 		return serverSock;
 	}
 
+	@Override
+	public void run() {
+		Server initServ = new Server();
+		listen();
+		
+	}
 
 }

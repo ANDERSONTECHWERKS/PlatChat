@@ -20,9 +20,28 @@ import junit.framework.TestCase;
 
 
 public class Tests extends TestCase{
+	static {
+		InetSocketAddress lb6969 =  new InetSocketAddress(InetAddress.getLoopbackAddress(),6969);
+		InetSocketAddress lb7000 =  new InetSocketAddress(InetAddress.getLoopbackAddress(),7000);
+		
+		try {
+			Socket clientSock = new Socket(lb6969.getAddress(),6969,lb7000.getAddress(),7000);
+			ServerSocket servSock = new ServerSocket(6969,1,lb6969.getAddress());
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+	}
 	
 	@Test
 	public void testPlatChecker() {
 		System.out.println("Is theJames plat? " + Server.isPlayerPlat("thejames", 1611, false));
+	}
+	
+	@Test
+	public void testServerCreation() {
+		
+		Server testServ = new Server();
+		testServ.run();
 	}
 }
