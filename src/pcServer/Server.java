@@ -9,6 +9,7 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.URL;
 import java.net.UnknownHostException;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Scanner;
 
@@ -33,7 +34,7 @@ public class Server implements Runnable{
 		ChatState pcState = new ChatState();
 	}
 	
-	public Server(ServerSocket servSock) {
+	public Server(ServerSocket servSock, boolean debug) {
 		
 		this.serverSock = servSock;
 		this.servTransponder = new TransponderTCP(this.serverSock);
@@ -44,14 +45,17 @@ public class Server implements Runnable{
 		
 		initPCState.addMessage(welcomeMessage);
 		
+		this.servTransponder.setDebugFlag(debug);
+		
 		this.servTransponder.setServerMessage(initPCState);
 		
 		this.transponderThread = new Thread(this.servTransponder);
 	}
 	
+	
+	
 	public void listen() {
 		this.transponderThread.start();
-		
 	}
 	
 	public static boolean isPlayerPlat(String battleTag, int btCode, boolean debugFlag) {
@@ -196,10 +200,19 @@ public class Server implements Runnable{
 
 		return serverSock;
 	}
+	
+	public ArrayList<ClientMessage<?>> getLastMessages() {
+		ArrayList<ClientMessage<?>> result = null;
+		
+		result = this.servTransponder.serverRetrieveMessages();
+		
+		System.out.println(result.toString());
+		
+		return result;
+	}
 
 	@Override
 	public void run() {
-		Server initServ = new Server();
 		listen();
 		
 	}

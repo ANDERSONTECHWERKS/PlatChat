@@ -10,13 +10,13 @@ import java.net.URL;
 import java.util.Scanner;
 
 import pcServer.*;
-import transponder.*;
 import transponderTCP.TransponderTCP;
 
 public class Client implements Runnable{
 	
 	Socket clientSock = null;
 	TransponderTCP clientTransp = null;
+	Thread transpThread = null;
 	
 	int battleTagCode = 0;
 	String battleTag = "";
@@ -24,7 +24,14 @@ public class Client implements Runnable{
 	public Client() {
 		menuPrompt();
 		clientTransp = new TransponderTCP(this.clientSock);
-		
+		this.transpThread = new Thread(clientTransp);
+	}
+	
+	public Client(Socket clientSock, boolean debug) {
+		this.clientSock = clientSock;
+		this.clientTransp = new TransponderTCP(this.clientSock);
+		this.clientTransp.setDebugFlag(debug);
+		this.transpThread = new Thread(clientTransp);
 	}
 
 	public static void main(String[] args) {
@@ -163,15 +170,29 @@ public class Client implements Runnable{
 	@Override
 	public void run() {
 		// TODO Auto-generated method stub
-		
+		this.transpThread.start();
 	}
 	
 	public void sendMessage(String messageInp) {
 		
 		if(this.clientSock.isConnected()) {
+			
 			ChatMessage message = new ChatMessage(messageInp);
+			
 			this.clientTransp.clientSendMessage(message);
 		}
+	}
+	
+	public String debugGetLastChatMessage() {
+		String result = "";
+		
+		try {
+			result += this.clientTransp.clientGetLastMessage() + "\n";
+		} catch (InterruptedException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		return result;
 	}
 	
 	public void printMessages() {

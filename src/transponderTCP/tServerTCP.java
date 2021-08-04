@@ -37,7 +37,7 @@ public class tServerTCP implements Runnable {
 	private ObjectInputStream objInputStream = null;
 	
 	private ServerMessage<?> currServMessage = null;
-	private PriorityBlockingQueue<ClientMessage<?>> clientMessages = null;
+	private PriorityBlockingQueue<ClientMessage<?>> clientMessages = new PriorityBlockingQueue<ClientMessage<?>>();
 
 	private debugObj debugObject = null;
 	
@@ -92,13 +92,14 @@ public class tServerTCP implements Runnable {
 				// to a client 
 				
 
-				if(input instanceof ClientMessage) {
+				if(input instanceof ClientMessage<?>) {
 
 					ClientMessage<?> inpMessage = (ClientMessage<?>)input;
 
 					if (this.debugFlag == true) {
 						System.out.println("tServer| Received ClientMessage class!");
 						System.out.println("tServer| ClientMessage received in serviceStart() method!");
+						System.out.println("tServer| Message reads: \n" + inpMessage.toString());
 					}
 					
 					// add this to the list of messages we recieved

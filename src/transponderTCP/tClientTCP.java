@@ -439,6 +439,7 @@ public class tClientTCP implements Runnable {
 			this.objOutStream.writeObject(message);
 			return true;
 		} catch (IOException e) {
+			System.out.println("tClient| Failed to send message! Is something wrong with the objOutStream?");
 			e.printStackTrace();
 			return false;
 		}

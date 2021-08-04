@@ -17,20 +17,12 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import junit.framework.TestCase;
+import pcClient.Client;
 
 
 public class Tests extends TestCase{
 	static {
-		InetSocketAddress lb6969 =  new InetSocketAddress(InetAddress.getLoopbackAddress(),6969);
-		InetSocketAddress lb7000 =  new InetSocketAddress(InetAddress.getLoopbackAddress(),7000);
-		
-		try {
-			Socket clientSock = new Socket(lb6969.getAddress(),6969,lb7000.getAddress(),7000);
-			ServerSocket servSock = new ServerSocket(6969,1,lb6969.getAddress());
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
+
 	}
 	
 	@Test
@@ -41,7 +33,57 @@ public class Tests extends TestCase{
 	@Test
 	public void testServerCreation() {
 		
-		Server testServ = new Server();
+		// Begin standard socket init block
+		InetSocketAddress lb6969 =  new InetSocketAddress(InetAddress.getLoopbackAddress(),6969);
+		InetSocketAddress lb7000 =  new InetSocketAddress(InetAddress.getLoopbackAddress(),7000);
+		ServerSocket servSock = null;
+		Socket clientSock = null;
+		try {
+			servSock = new ServerSocket(6969,1,lb6969.getAddress());
+			clientSock = new Socket(lb6969.getAddress(),6969,lb7000.getAddress(),7000);
+
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		// End standard socket init block
+		
+		Server testServ = new Server(servSock,true);
 		testServ.run();
+	}
+	
+	@Test
+	public void testServerCreationClientConnect() {
+		
+		// Begin standard socket init block
+		InetSocketAddress lb6969 =  new InetSocketAddress(InetAddress.getLoopbackAddress(),6969);
+		InetSocketAddress lb7000 =  new InetSocketAddress(InetAddress.getLoopbackAddress(),7000);
+		ServerSocket servSock = null;
+		Socket clientSock = null;
+		try {
+			servSock = new ServerSocket(6969,1,lb6969.getAddress());
+			clientSock = new Socket(lb6969.getAddress(),6969,lb7000.getAddress(),7000);
+
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		// End standard socket init block
+		
+		Server testServ = new Server(servSock,true);
+		Thread servThread = new Thread(testServ);
+		
+		servThread.start();
+		
+		Client testClient = new Client(clientSock,true);
+		Thread clientThread = new Thread(testClient);
+		
+		clientThread.start();
+		
+		testClient.sendMessage("Radical Bread");
+		
+		testServ.getLastMessages().toString();
+		testClient.debugGetLastChatMessage();
+		
 	}
 }
