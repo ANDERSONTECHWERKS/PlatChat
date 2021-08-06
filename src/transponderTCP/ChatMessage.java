@@ -1,4 +1,4 @@
-package pcServer;
+package transponderTCP;
 
 import java.util.Date;
 
@@ -11,29 +11,11 @@ public class ChatMessage extends ClientMessage<String>{
 	private static final long serialVersionUID = 1L;
 
 	private Date timestamp = null;
-	private String user = "";
-	
 	
 	public ChatMessage(String message) {
-		super.setMessage("StandardChatMessage");
 		super.setPayload(message);
 		this.timestamp = new Date();
 	}
-	
-	
-	public void setUser(String user) {
-		this.user = user;
-	}
-	
-	public String getUser() {
-		return user;
-	}
-	
-	public String getChatMessage() {
-		return super.getPayload();
-	}
-	
-	
 	
 	@Override
 	public String toString() {

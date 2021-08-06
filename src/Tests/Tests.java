@@ -37,10 +37,9 @@ public class Tests extends TestCase{
 		InetSocketAddress lb6969 =  new InetSocketAddress(InetAddress.getLoopbackAddress(),6969);
 		InetSocketAddress lb7000 =  new InetSocketAddress(InetAddress.getLoopbackAddress(),7000);
 		ServerSocket servSock = null;
-		Socket clientSock = null;
+		
 		try {
 			servSock = new ServerSocket(6969,1,lb6969.getAddress());
-			clientSock = new Socket(lb6969.getAddress(),6969,lb7000.getAddress(),7000);
 
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
@@ -49,7 +48,43 @@ public class Tests extends TestCase{
 		// End standard socket init block
 		
 		Server testServ = new Server(servSock,true);
-		testServ.run();
+		
+		Thread testServThread = new Thread(testServ);
+		
+		testServThread.start();
+		testServ.sendChatMessage("Rad 1");
+		testServ.sendChatMessage("Rad 2");
+		testServ.sendChatMessage("Rad 3");
+
+	}
+	
+	@Test
+	public void testClientCreation() {
+		
+		// Begin standard socket init block
+		InetSocketAddress lb6969 =  new InetSocketAddress(InetAddress.getLoopbackAddress(),6969);
+		InetSocketAddress lb7000 =  new InetSocketAddress(InetAddress.getLoopbackAddress(),7000);
+		Socket cliSock = null;
+		
+		try {
+			cliSock = new Socket();
+			cliSock.bind(lb7000);
+			cliSock.connect(lb6969);
+
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		// End standard socket init block
+		
+		Client testClient = new Client(cliSock,true);
+		
+		Thread testCliThread = new Thread(testClient);
+		
+		testCliThread.start();
+		testClient.sendChatMessage("Test1");
+		testClient.sendChatMessage("Test2");
+		testClient.sendChatMessage("Test3");
 	}
 	
 	@Test
@@ -60,6 +95,7 @@ public class Tests extends TestCase{
 		InetSocketAddress lb7000 =  new InetSocketAddress(InetAddress.getLoopbackAddress(),7000);
 		ServerSocket servSock = null;
 		Socket clientSock = null;
+		
 		try {
 			servSock = new ServerSocket(6969,1,lb6969.getAddress());
 			clientSock = new Socket(lb6969.getAddress(),6969,lb7000.getAddress(),7000);
@@ -80,10 +116,13 @@ public class Tests extends TestCase{
 		
 		clientThread.start();
 		
-		testClient.sendMessage("Radical Bread");
+		testClient.sendChatMessage("Radical Bread");
+		testServ.sendChatMessage("Butthead Prime");
 		
-		testServ.getLastMessages().toString();
-		testClient.debugGetLastChatMessage();
+		System.out.println("Last testServ ChatLog returns:\n"+testServ.getLastChatLog().toString());
+		System.out.println("Last testClient debutLastClientMessage returns:\n"+testClient.debugGetLastClientMessage());
+		System.out.println("Last testClient getLatestChatState returns:\n"+testClient.getLatestChatState());
+
 		
 	}
 }

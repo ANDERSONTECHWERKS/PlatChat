@@ -1,4 +1,5 @@
 package pcServer;
+
 import transponderTCP.*;
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -10,61 +11,186 @@ import java.net.Socket;
 import java.net.URL;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.Scanner;
+import java.util.concurrent.PriorityBlockingQueue;
 
-public class Server implements Runnable{
+import pcConsole.Console;
+
+public class Server implements Runnable {
 	String welcomeMessage = "PLATCHAT_EXPERIMENTAL! WELCOME!";
+	
+	ChatState chatState = null;
+	
+	pcConsole.Console mainConsole = null;
 
 	ServerSocket serverSock = null;
-	
+
 	Socket clientSock = null;
-	
+
 	TransponderTCP servTransponder = null;
+	
 	Thread transponderThread = null;
-	
+
 	HashSet<Socket> clientSockets = null;
-	
+
 	boolean debugFlag = false;
 	boolean stopFlag = false;
-	
+
 	public Server() {
 		this.menuPrompt();
+
 		this.servTransponder = new TransponderTCP(this.serverSock);
-		ChatState pcState = new ChatState();
+
+		this.transponderThread = new Thread(servTransponder);
+
+		ChatState pcState = new ChatState(this.welcomeMessage);
+		this.chatState = pcState;
+
+		this.servTransponder.setInitServerMessage(pcState);
+
 	}
 	
-	public Server(ServerSocket servSock, boolean debug) {
+	// Constructor that should help us debug
+	public Server(String serverIP, int port, int backlog, boolean debug) {
 		
-		this.serverSock = servSock;
+		this.serverSock = this.createServerSock(serverIP, port, backlog);
+		
 		this.servTransponder = new TransponderTCP(this.serverSock);
-		
-		ChatState initPCState = new ChatState();
-		
-		ChatMessage welcomeMessage = new ChatMessage(this.welcomeMessage);
-		
-		initPCState.addMessage(welcomeMessage);
 		
 		this.servTransponder.setDebugFlag(debug);
+
+		ChatState pcState = new ChatState(this.welcomeMessage);
+		this.chatState = pcState;
+
+		this.servTransponder.setInitServerMessage(pcState);
 		
-		this.servTransponder.setServerMessage(initPCState);
-		
+		this.transponderThread = new Thread(servTransponder);
+
+	}
+
+	public Server(ServerSocket servSock) {
+
+		this.serverSock = servSock;
+
+		this.servTransponder = new TransponderTCP(this.serverSock);
+
+		ChatState pcState = new ChatState(this.welcomeMessage);
+		this.chatState = pcState;
+
+		this.servTransponder.setInitServerMessage(pcState);
+
+		this.transponderThread = new Thread(servTransponder);
+
+	}
+
+	public Server(ServerSocket servSock, boolean debug) {
+
+		this.serverSock = servSock;
+
+		this.servTransponder = new TransponderTCP(this.serverSock);
+
+		ChatState pcState = new ChatState(this.welcomeMessage);
+		this.chatState = pcState;
+
+		// Initialize first chatState with welcome message, set payload.
+		this.servTransponder.setDebugFlag(debug);
+
+		this.servTransponder.setInitServerMessage(pcState);
+
 		this.transponderThread = new Thread(this.servTransponder);
 	}
-	
-	
-	
-	public void listen() {
-		this.transponderThread.start();
+
+	// Sends a chat message to all clients connected to TransponderTCP instance
+
+	public void sendChatMessage(String messageInp) {
+		// TODO: This method is bare-minimum. Finish it!
+
+		ChatMessage message = new ChatMessage(messageInp);
+
+		this.servTransponder.sendClientMessage(message);
 	}
 	
+	public void broadcastChatState(ChatState inpState) {
+		this.servTransponder.allServersSendMessage(inpState);
+	}
+
+	
+	// Send a server message to all clients connected to TransponderTCP instance
+	public void sendServerMessage(ServerMessage<?> messageInp) {
+		//TODO: Finish this method!
+		
+		//TODO: Be aware that 'allServersSendMessage' will be deprecated soon!
+		this.servTransponder.allServersSendMessage(messageInp);
+	}
+
+	public void listen() {
+
+		// If we (for whatever reason) have a thread assigned, new, and not started -
+		// start the thread!
+		if (this.transponderThread instanceof Thread && this.transponderThread.getState() == Thread.State.NEW) {
+			this.transponderThread.start();
+		}
+
+		while (this.stopFlag == false) {
+			
+			ClientMessage<?> inpCM = null;
+			ServerMessage<?> inpSM = null;
+			
+			if (this.servTransponder.getNewCMFlag()) {
+				
+				try {
+					inpCM = this.servTransponder.getLastCM();
+				} catch (InterruptedException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+				
+				// If the incoming ClientMessage is a ChatMessage - just print it to the console
+				// TODO: Handle this better in the future
+				if(inpCM instanceof ChatMessage) {
+					
+					
+					// Idea: If we get a new chatMessage, we update the state and retransmit it
+					// to all clients!
+					this.updateChatState(this.chatState);
+					
+					this.mainConsole.printToConsole(inpCM.toString());
+
+					this.servTransponder.allServersSendMessage(this.chatState);
+				}
+			}
+			
+			// If the incoming ServerMessage is a ChatState - also print to console.
+			// TODO: Handle this better in the future
+			// A server shouldn't really be getting ServerMessages, but...we'll stay flexible here.
+			
+			if(this.servTransponder.getNewSMFlag()) {
+				
+					try {
+						inpSM = this.servTransponder.getLastSM();
+					} catch (InterruptedException e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+					}
+					
+					if(inpSM instanceof ChatState) {
+						this.mainConsole.printToConsole(inpSM.toString());
+					}
+				
+			}
+
+		}
+	}
+
 	public static boolean isPlayerPlat(String battleTag, int btCode, boolean debugFlag) {
 
 		// Craft the custom URL based off of the playoverwatch.com address format
 		URL playOW = null;
 		BufferedReader webInput = null;
 		int playerHighestSR = 0;
-		
+
 		try {
 
 			playOW = new URL("https://playoverwatch.com/en-us/career/pc/" + battleTag + "-" + btCode);
@@ -82,55 +208,59 @@ public class Server implements Runnable{
 
 		String webPageLine;
 
-		// Figure out what data structure you want to place that webPageLine string into.
-		
+		// Figure out what data structure you want to place that webPageLine string
+		// into.
+
 		try {
-			//TODO: This is the ugliest way I could have found to parse this. This needs review and improving!
-			// The point is to actually read the rest of the line after we find the wordds "competitive-rank-level"
-			// currently: We just find the first and last reference, and pray that we get what we want.
-			
+			// TODO: This is the ugliest way I could have found to parse this. This needs
+			// review and improving!
+			// The point is to actually read the rest of the line after we find the wordds
+			// "competitive-rank-level"
+			// currently: We just find the first and last reference, and pray that we get
+			// what we want.
+
 			while ((webPageLine = webInput.readLine()) != null) {
-				
-				if(webPageLine.contains("competitive-rank-level")) {
-					
+
+				if (webPageLine.contains("competitive-rank-level")) {
+
 					int lineMarkerCRL = webPageLine.indexOf("competitive-rank-level");
 					String SR = webPageLine.substring(lineMarkerCRL + 24, lineMarkerCRL + 28);
 					Integer SRInt = Integer.valueOf(SR);
-					
+
 					// Always assign HighestSR found
-					if(SRInt > playerHighestSR) {
+					if (SRInt > playerHighestSR) {
 						playerHighestSR = SRInt;
 					}
-					
+
 					int lineMarkerNext = webPageLine.lastIndexOf("competitive-rank-level");
 					SR = webPageLine.substring(lineMarkerNext + 24, lineMarkerNext + 28);
 					SRInt = Integer.valueOf(SR);
-					
+
 					// Always assign HighestSR found
-					if(SRInt > playerHighestSR) {
+					if (SRInt > playerHighestSR) {
 						playerHighestSR = SRInt;
 					}
-					
-					
-					System.out.println("Highest detected SR for player " + battleTag + "#" + btCode + " is: \n" + SRInt);
+
+					System.out
+							.println("Highest detected SR for player " + battleTag + "#" + btCode + " is: \n" + SRInt);
 				}
-				
-				if(debugFlag == true) {
+
+				if (debugFlag == true) {
 					System.out.println(webPageLine);
 				}
-				
+
 			}
-			
+
 			// Check if platinum!
-			if(playerHighestSR < 3000 && playerHighestSR >= 2500) {
-				
-				if(debugFlag == true) {
-					System.out.println("Player "+ battleTag + "#" + btCode + " is Platinum!");
+			if (playerHighestSR < 3000 && playerHighestSR >= 2500) {
+
+				if (debugFlag == true) {
+					System.out.println("Player " + battleTag + "#" + btCode + " is Platinum!");
 				}
-				
+
 				return true;
 			}
-			
+
 			webInput.close();
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
@@ -139,10 +269,65 @@ public class Server implements Runnable{
 
 		return false;
 	}
+	
+	// Iterates through all the messages in the master chat log (AKA: Master Client Message list)
+	// Casts them to messages, if applicable, and adds them to the chatLog (provided that the castMessage is not in the chatLog already!)
+	
+	private void updateChatState(ChatState inpChatState) {
+		if(this.servTransponder != null) {
+			
+			ArrayList<ChatMessage> chatLog = inpChatState.getPayload();
+			
+			PriorityBlockingQueue<ClientMessage<?>> masterCL = this.servTransponder.getMasterCliMsg();
+			
+			for(ClientMessage<?> currMessage : masterCL) {
+				if(currMessage instanceof ChatMessage) {
+					ChatMessage castMessage = (ChatMessage)currMessage;
+					
+					if(!chatLog.contains(castMessage)) {
+						chatLog.add(castMessage);
+					}
+				}
+			}
+			//TODO: You will likely encounter future issues with messages appearing out of order
+			// Consider adding a sort() call here, with comparator. 
+		}
+	}
 
 	public static void main(String[] args) {
-		// TODO Auto-generated method stub
-		Server server = new Server();
+		Thread s = Thread.currentThread();
+		s.setName("PC-Server Main");
+		
+		Server initServ = new Server();
+
+		Scanner userInp = new Scanner(System.in);
+		
+		boolean stopFlag = false;
+
+		Thread initThread = new Thread(initServ);
+		initThread.setName("PC-Server");
+
+		initThread.start();
+		
+		while(stopFlag == false) {
+			System.out.println(initServ.getChatState());
+			System.out.println("Type 'x' to exit! ");
+			System.out.println("Enter message to send to clients:");
+			
+			String message = userInp.nextLine();
+			
+			if(message.compareTo("x") == 0) {
+				
+				stopFlag = true;
+				
+				initServ.servTransponder.stopAll();
+				
+				break;
+			}
+
+			initServ.sendChatMessage(message);
+		}
+
 	}
 
 	public void menuPrompt() {
@@ -155,14 +340,14 @@ public class Server implements Runnable{
 		String prompt4 = "Please enter your Battle Tag Code (Ex: #1234)";
 
 		System.out.println(intro);
-		
+
 		// Prompt for server listen ip
 		System.out.println(prompt1);
 		String ipAddrInp = inpScanner.nextLine();
 
 		// prompt for server listen socket
 		System.out.println(prompt2);
-		int ipPort = inpScanner.nextInt();
+		int ipPort = Integer.valueOf(inpScanner.nextLine());
 
 		// prompt for player battletag
 		System.out.println(prompt3);
@@ -170,7 +355,7 @@ public class Server implements Runnable{
 
 		// prompt for player battletag code
 		System.out.println(prompt4);
-		int battleTagCode = 0;
+		int battleTagCode = inpScanner.nextInt();
 
 		this.serverSock = this.createServerSock(ipAddrInp, ipPort, 12);
 	}
@@ -200,21 +385,44 @@ public class Server implements Runnable{
 
 		return serverSock;
 	}
-	
-	public ArrayList<ClientMessage<?>> getLastMessages() {
+
+	// Retrieves last messages from Transponder and orders them by date/timestamp
+	public ArrayList<ClientMessage<?>> getLastChatLog() {
 		ArrayList<ClientMessage<?>> result = null;
-		
-		result = this.servTransponder.serverRetrieveMessages();
-		
-		System.out.println(result.toString());
-		
+
+		MessageDateComparator dateComp = new MessageDateComparator();
+
+		result = this.servTransponder.getServerRecievedCMsOrdered(dateComp);
+
+		System.out.println("PlatChatServer recieved message:" + result.toString());
+
 		return result;
+	}
+	
+	public ChatState getChatState() {
+		return this.chatState;
+	}
+
+	public String formatPrintLastMessages(ArrayList<ClientMessage<?>> inpList) {
+		String result = "";
+		for (ClientMessage<?> currMessage : inpList) {
+			result += currMessage.toString() + "\n";
+		}
+		return result;
+
+	}
+	
+	public void setConsole(pcConsole.Console inpConsole) {
+		this.mainConsole = inpConsole;
 	}
 
 	@Override
 	public void run() {
+		// listen() has an internal while-loop
 		listen();
 		
+		// Assuming we are done listening, close the transponder object.
+		this.servTransponder.closeServerIO();
 	}
 
 }

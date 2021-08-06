@@ -8,9 +8,13 @@ import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketAddress;
+import java.net.SocketException;
 import java.net.UnknownHostException;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Scanner;
+import java.util.concurrent.PriorityBlockingQueue;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -35,19 +39,23 @@ public class Tests extends TestCase{
 		
 		try {
 			servSock = new ServerSocket();
+			servSock.bind(serverSockAddr);
 			
 			testTranspServer = new TransponderTCP(servSock);
-			testTranspServer.setServerMessage(testPayload);
+			testTranspServer.setInitServerMessage(testPayload);
 			testTranspServer.setDebugFlag(true);
 			testTranspServer.setDebugObject(dObj);
-			testTranspServer.run();
+			Thread transpServThread = new Thread(testTranspServer);
+			transpServThread.start();
 			
 			clientSock.bind(clientSockAddr);
+			clientSock.connect(serverSockAddr);
 			
 			testTranspClient = new TransponderTCP(clientSock);
 			testTranspClient.setDebugFlag(true);
 			testTranspClient.setDebugObject(dObj);
-			testTranspClient.run();
+			Thread transpClientThread = new Thread(testTranspClient);
+			transpClientThread.start();
 
 			assertTrue(dObj.evaluateMessageEquivalanceMulti());
 			
@@ -91,6 +99,8 @@ public class Tests extends TestCase{
 		InputStream input = new ByteArrayInputStream(createMode1Input.getBytes());
 		Scanner testScanner = new Scanner(input);
 		ControllerMenu testMenu = new ControllerMenu(testScanner);
+
+		
 		input = new ByteArrayInputStream(createClientSocketInput.getBytes());
 		testScanner = new Scanner(input);
 		
@@ -130,7 +140,7 @@ public class Tests extends TestCase{
 
 		TransponderTCP testTransp = new TransponderTCP(serverSock);
 		
-		testTransp.setServerMessage(testPayload);
+		testTransp.setInitServerMessage(testPayload);
 		
 		Thread serverThread = new Thread(testTransp);
 		
@@ -162,7 +172,7 @@ public class Tests extends TestCase{
 
 		clientThread.start();
 		
-		ServerMessage testPayload = testClient.getLastServerMessage();
+		ServerMessage<?> testPayload = testClient.getLastServerMessage();
 		
 		if(testPayload instanceof Payload) {
 			System.out.println("testClient: Payload received!\n" + testPayload.toString() +"\n");
@@ -187,18 +197,11 @@ public class Tests extends TestCase{
 			e.printStackTrace();
 		}
 
-		// Try instantiating serverSock
-		try {
-			serverSock = new ServerSocket(6969, 1, serverAddr.getAddress());
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
 		
 		TransponderTCP testTranspTCP = new TransponderTCP(serverSock);
 
 		testTranspTCP.setDebugFlag(true);
-		testTranspTCP.setServerMessage(testPayload);
+		testTranspTCP.setInitServerMessage(testPayload);
 		testTranspTCP.setDebugObject(debugger);
 
 		Thread transpThread = new Thread(testTranspTCP);
@@ -213,6 +216,7 @@ public class Tests extends TestCase{
 					+ "Client Address:" + Inet4Address.getLoopbackAddress() + ":7000");
 			
 			localSock = new Socket(Inet4Address.getLoopbackAddress(),6969, Inet4Address.getLoopbackAddress(),7000);
+			
 		} catch (UnknownHostException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -283,7 +287,7 @@ public class Tests extends TestCase{
 		Payload testPayload = new Payload(7,"SIGMA");
 
 		testTranspTCP.setDebugFlag(true);
-		testTranspTCP.setServerMessage(testPayload);
+		testTranspTCP.setInitServerMessage(testPayload);
 		
 		Thread transpThread = new Thread(testTranspTCP);
 		
@@ -332,5 +336,170 @@ public class Tests extends TestCase{
 		for(Thread currThread : clientThreadSet) {
 			currThread.start();
 		}
+	}
+	
+	@Test
+	public void testSingleTranspCliServ() {
+		InetSocketAddress serverAddr = new InetSocketAddress(InetAddress.getLoopbackAddress(),6969);
+		InetSocketAddress clientAddr = new InetSocketAddress(InetAddress.getLoopbackAddress(),7000);
+		ServerSocket servSock = null;
+		Socket clientSock = new Socket();
+
+		
+		ClientMessage<String> testMessage1 = new ChatMessage("Test1");
+		
+		ClientMessage<String> testMessage2 = new ChatMessage("Test2");
+		
+		ClientMessage<String> testMessage3 = new ChatMessage("Test3");
+		
+		ClientMessage<String> testMessage4 = new ChatMessage("Test4");
+		
+
+		ServerMessage<?> testPayload = new Payload(7,"SIGMA");
+		ServerMessage<?> testPayload2 = new Payload(8,"Large Fries");
+		
+		// setup server socket, then client socket
+		try {
+			servSock = new ServerSocket();
+			servSock.bind(serverAddr);
+			
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		
+		try {
+			clientSock.setReuseAddress(true);
+			clientSock.bind(clientAddr);
+			clientSock.connect(serverAddr);
+		} catch (SocketException e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		
+		
+		// initialize server transponder
+		TransponderTCP testTranspServ = new TransponderTCP(1,true);
+
+		testTranspServ.setDebugFlag(true);
+		testTranspServ.setInitServerMessage(testPayload);
+		testTranspServ.setServerSocket(servSock);
+		
+		Thread transpServThread = new Thread(testTranspServ);
+		
+		transpServThread.start();
+		
+		
+		// initialize client transponder
+		TransponderTCP testTranspCli = new TransponderTCP(2, true);
+		
+		testTranspCli.addClient(clientSock);
+		
+		Thread transpCliThread = new Thread(testTranspCli);
+		
+		transpCliThread.start();
+
+		
+		testTranspServ.sendClientMessage(testMessage1);
+		testTranspServ.sendClientMessage(testMessage2);
+		
+		testTranspCli.sendClientMessage(testMessage3);
+		testTranspCli.sendClientMessage(testMessage4);
+		
+		testTranspServ.allServersSendMessage(testPayload);
+		testTranspServ.allServersSendMessage(testPayload2);
+		
+		System.out.println("Client Master ClientMessage list contains the following: \n" + testTranspCli.getMasterCliMsg().toString()+ "\n");
+		System.out.println("Client Master ServerMessage list contains the following: \n" + testTranspCli.getMasterServMsg().toString()+ "\n");
+		System.out.println("Server Master ClientMessage list contains the following: \n " + testTranspServ.getMasterCliMsg().toString()+ "\n");
+		System.out.println("Server Master ServerMessage list contains the following: \n" + testTranspServ.getMasterServMsg().toString()+ "\n");
+		
+	}
+	
+	@Test
+	public void testMultipleTranspCliServ() {
+		
+		InetSocketAddress serverAddr = new InetSocketAddress(InetAddress.getLoopbackAddress(),6969);
+		InetSocketAddress clientAddr = new InetSocketAddress(InetAddress.getLoopbackAddress(),7000);
+		
+		ServerSocket servSock = null;
+		
+		ClientMessage<String> testMessage1 = new ChatMessage("Test1");
+		
+		ClientMessage<String> testMessage2 = new ChatMessage("Test2");
+		
+		ClientMessage<String> testMessage3 = new ChatMessage("Test3");
+		
+		ClientMessage<String> testMessage4 = new ChatMessage("Test4");
+		
+		// setup client and server sockets
+		try {
+			servSock = new ServerSocket();
+			servSock.bind(serverAddr);
+			
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		
+
+		
+		
+		TransponderTCP testTranspServ = new TransponderTCP(servSock);
+
+		Payload testPayload = new Payload(7,"SIGMA");
+		Payload testPayload2 = new Payload(8,"Large Fries");
+		
+		testTranspServ.setDebugFlag(true);
+		testTranspServ.setInitServerMessage(testPayload);
+		
+		Thread transpThread = new Thread(testTranspServ);
+		
+		transpThread.start();
+		
+		TransponderTCP testTranspCli = new TransponderTCP(2);
+		testTranspCli.setDebugFlag(true);
+
+		for(int i = 0; i < 10; i++) {
+			
+			int incPort = clientAddr.getPort() + i;
+			
+			InetSocketAddress clientAddrInc = new InetSocketAddress(InetAddress.getLoopbackAddress(),incPort);
+
+			Socket clientSock = new Socket();
+
+			try {
+				clientSock.setReuseAddress(true);
+				clientSock.bind(clientAddrInc);
+				clientSock.connect(serverAddr);
+				
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+			
+			testTranspCli.addClient(clientSock);
+
+		}
+		
+		Thread transpClientThread = new Thread(testTranspCli);
+		transpClientThread.start();
+		
+		testTranspCli.sendClientMessage(testMessage1);
+		testTranspCli.sendClientMessage(testMessage2);
+		testTranspCli.sendClientMessage(testMessage3);
+		
+		testTranspServ.sendClientMessage(testMessage4);
+
+		
+		testTranspServ.allServersSendMessage(testPayload2);
+
+		Comparator<ClientMessage<?>> dateComp = new MessageDateComparator();
+		
+		System.out.println("Server recieved the following messages:\n" + testTranspServ.getServerRecievedCMsOrdered(dateComp));
+
 	}
 }
