@@ -16,6 +16,7 @@ import java.util.HashSet;
 import java.util.Scanner;
 import java.util.concurrent.PriorityBlockingQueue;
 
+import pcClient.Client;
 import pcConsole.Console;
 
 public class Server implements Runnable {
@@ -35,6 +36,11 @@ public class Server implements Runnable {
 
 	HashSet<Socket> clientSockets = null;
 
+	private int battleTagCode = 0;
+	private String battleTag = "";
+	
+	private Scanner inpScanner = null;
+	
 	boolean debugFlag = false;
 	boolean stopFlag = false;
 
@@ -278,7 +284,7 @@ public class Server implements Runnable {
 			}
 
 			// Check if platinum!
-			if (playerHighestSR < 3000 && playerHighestSR >= 2500) {
+			if (playerHighestSR >= 2500) {
 
 				if (debugFlag == true) {
 					System.out.println("Player " + battleTag + "#" + btCode + " is Platinum!");
@@ -328,6 +334,12 @@ public class Server implements Runnable {
 		Server initServ = new Server();
 
 		Scanner userInp = new Scanner(System.in);
+		
+		if(Server.isPlayerPlat(initServ.battleTag,
+				initServ.battleTagCode, false) == false) {
+			System.out.println("Not plat? No chat! Exiting!");
+			return;
+		}
 
 		boolean stopFlag = false;
 
@@ -397,11 +409,11 @@ public class Server implements Runnable {
 
 		// prompt for player battletag
 		System.out.println(prompt3);
-		String battleTag = inpScanner.nextLine();
+		this.battleTag = inpScanner.nextLine();
 
 		// prompt for player battletag code
 		System.out.println(prompt4);
-		int battleTagCode = inpScanner.nextInt();
+		this.battleTagCode = inpScanner.nextInt();
 
 		this.serverSock = this.createServerSock(ipAddrInp, ipPort, 12);
 	}

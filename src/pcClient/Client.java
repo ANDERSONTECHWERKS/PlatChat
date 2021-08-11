@@ -48,6 +48,7 @@ public class Client implements Runnable{
 	}
 
 	public static void main(String[] args) {
+
 		Thread s = Thread.currentThread();
 		s.setName("PC-Client Main");
 		
@@ -58,6 +59,12 @@ public class Client implements Runnable{
 		Client initClient = new Client();
 		
 		Thread clientThread = new Thread(initClient);
+		
+		if(Client.isPlayerPlat(initClient.battleTag,
+				initClient.battleTagCode, false) == false) {
+			System.out.println("Not plat? No chat! Exiting!");
+			return;
+		}
 
 		clientThread.setName("PC-Client");
 		
@@ -77,15 +84,18 @@ public class Client implements Runnable{
 			String message = userInp.nextLine();
 			
 			switch (message) {
+			
 			case "r":
 				System.out.println("---CHAT---");
 				System.out.println(initClient.getChatState());
 				System.out.println("---ENDCHAT---");				
 				break;
+				
 			case "x":
 				System.out.println("Exiting PlatChat Server!");
 				stopFlag = true;
 				break;
+				
 			default:
 				initClient.sendChatMessage(message);
 			}
@@ -206,7 +216,7 @@ public class Client implements Runnable{
 			}
 			
 			// Check if platinum!
-			if(playerHighestSR < 3000 && playerHighestSR >= 2500) {
+			if(playerHighestSR >= 2500) {
 				
 				if(debugFlag == true) {
 					System.out.println("Player "+ battleTag + "#" + btCode + " is Platinum!");
