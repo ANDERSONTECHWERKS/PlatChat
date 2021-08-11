@@ -3,6 +3,10 @@ Chat client for Elite OW players ONLY!
 
 PlatChat scrapes your SR from playoverwatch.com (Your profile must be public!) and connects you to an appropriate channel for your skill rating.
 
+PlatChat is a Java-based chat client built on top of my Transponder networking framework. This project is intended to be a humorous showcase of both the abilities of Transponder, as well as my own.
+
+_PlatChat is being developed alongside Transponder, so please bear with me when that project takes priority_
+
 Channel tiers are:
 
 -Scrub Club:
