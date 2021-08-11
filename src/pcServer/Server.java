@@ -20,9 +20,9 @@ import pcConsole.Console;
 
 public class Server implements Runnable {
 	String welcomeMessage = "PLATCHAT_EXPERIMENTAL! WELCOME!";
-	
+
 	ChatState chatState = null;
-	
+
 	pcConsole.Console mainConsole = null;
 
 	ServerSocket serverSock = null;
@@ -30,7 +30,7 @@ public class Server implements Runnable {
 	Socket clientSock = null;
 
 	TransponderTCP servTransponder = null;
-	
+
 	Thread transponderThread = null;
 
 	HashSet<Socket> clientSockets = null;
@@ -51,21 +51,21 @@ public class Server implements Runnable {
 		this.servTransponder.setInitServerMessage(pcState);
 
 	}
-	
+
 	// Constructor that should help us debug
 	public Server(String serverIP, int port, int backlog, boolean debug) {
-		
+
 		this.serverSock = this.createServerSock(serverIP, port, backlog);
-		
+
 		this.servTransponder = new TransponderTCP(this.serverSock);
-		
+
 		this.servTransponder.setDebugFlag(debug);
 
 		ChatState pcState = new ChatState(this.welcomeMessage);
 		this.chatState = pcState;
 
 		this.servTransponder.setInitServerMessage(pcState);
-		
+
 		this.transponderThread = new Thread(servTransponder);
 
 	}
@@ -109,76 +109,102 @@ public class Server implements Runnable {
 
 		ChatMessage message = new ChatMessage(messageInp);
 
-		this.servTransponder.sendClientMessage(message);
-	}
-	
-	public void broadcastChatState(ChatState inpState) {
-		this.servTransponder.allServersSendMessage(inpState);
+		this.updateChatState(message);
+		this.servTransponder.sendClientMessageToAll(message);
+		this.servTransponder.sendServerMessageToAll(chatState);
 	}
 
-	
+	public void sendChatState(ChatState inpState) {
+		this.servTransponder.sendServerMessageToAll(inpState);
+	}
+
 	// Send a server message to all clients connected to TransponderTCP instance
 	public void sendServerMessage(ServerMessage<?> messageInp) {
-		//TODO: Finish this method!
-		
-		//TODO: Be aware that 'allServersSendMessage' will be deprecated soon!
-		this.servTransponder.allServersSendMessage(messageInp);
+
+		this.servTransponder.sendServerMessageToAll(messageInp);
 	}
 
 	public void listen() {
 
-		// If we (for whatever reason) have a thread assigned, new, and not started -
-		// start the thread!
-		if (this.transponderThread instanceof Thread && this.transponderThread.getState() == Thread.State.NEW) {
-			this.transponderThread.start();
-		}
-
 		while (this.stopFlag == false) {
-			
+
 			ClientMessage<?> inpCM = null;
 			ServerMessage<?> inpSM = null;
-			
+
 			if (this.servTransponder.getNewCMFlag()) {
-				
+
 				try {
 					inpCM = this.servTransponder.getLastCM();
+
+					if (this.debugFlag == true) {
+						System.out.println("pc-Server| Pulling last ClientMessage from Transponder...");
+						System.out.println("pc-Server| Last ClientMessage reported from Transponder is: \n "
+								+ inpCM.toString() + "\n");
+					}
+
 				} catch (InterruptedException e) {
 					// TODO Auto-generated catch block
 					e.printStackTrace();
 				}
-				
+
 				// If the incoming ClientMessage is a ChatMessage - just print it to the console
 				// TODO: Handle this better in the future
-				if(inpCM instanceof ChatMessage) {
-					
-					
+				if (inpCM instanceof ChatMessage) {
+
+					ChatMessage castChMess = (ChatMessage) inpCM;
+
+					if (this.debugFlag == true) {
+						System.out.println("pc-Server| Recieved ChatMessage object in listen() loop!");
+					}
+
 					// Idea: If we get a new chatMessage, we update the state and retransmit it
 					// to all clients!
-					this.updateChatState(this.chatState);
-					
-					this.mainConsole.printToConsole(inpCM.toString());
+					this.updateChatState(castChMess);
 
-					this.servTransponder.allServersSendMessage(this.chatState);
+					if (this.mainConsole != null && this.mainConsole instanceof pcConsole.Console) {
+						this.mainConsole.printToConsole(castChMess.toString());
+					}
+
+					// obtain lock on current chatstate and send
+
+					this.servTransponder.sendServerMessageToAll(this.chatState);
+
 				}
 			}
-			
+
 			// If the incoming ServerMessage is a ChatState - also print to console.
 			// TODO: Handle this better in the future
-			// A server shouldn't really be getting ServerMessages, but...we'll stay flexible here.
-			
-			if(this.servTransponder.getNewSMFlag()) {
-				
-					try {
-						inpSM = this.servTransponder.getLastSM();
-					} catch (InterruptedException e) {
-						// TODO Auto-generated catch block
-						e.printStackTrace();
+			// A server shouldn't really be getting ServerMessages, but...we'll stay
+			// flexible here.
+
+			if (this.servTransponder.getNewSMFlag()) {
+
+				try {
+
+					inpSM = this.servTransponder.getLastSM();
+
+					if (this.debugFlag == true) {
+						System.out.println("pc-Server| Pulling last ServerMessage from Transponder...");
+						System.out.println("pc-Server| Last ClientMessage reported from Transponder is: \n "
+								+ inpSM.toString() + "\n");
 					}
-					
-					if(inpSM instanceof ChatState) {
-						this.mainConsole.printToConsole(inpSM.toString());
+
+				} catch (InterruptedException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+
+				if (inpSM instanceof ChatState) {
+					ChatState castChState = (ChatState) inpSM;
+
+					if (this.debugFlag == true) {
+						System.out.println("pc-Server| Recieved ChatState object in listen() loop!");
 					}
-				
+					if (this.mainConsole != null && this.mainConsole instanceof pcConsole.Console) {
+						this.mainConsole.printToConsole(castChState.toString());
+					}
+				}
+
 			}
 
 		}
@@ -269,39 +295,40 @@ public class Server implements Runnable {
 
 		return false;
 	}
-	
-	// Iterates through all the messages in the master chat log (AKA: Master Client Message list)
-	// Casts them to messages, if applicable, and adds them to the chatLog (provided that the castMessage is not in the chatLog already!)
-	
-	private void updateChatState(ChatState inpChatState) {
-		if(this.servTransponder != null) {
-			
-			ArrayList<ChatMessage> chatLog = inpChatState.getPayload();
-			
-			PriorityBlockingQueue<ClientMessage<?>> masterCL = this.servTransponder.getMasterCliMsg();
-			
-			for(ClientMessage<?> currMessage : masterCL) {
-				if(currMessage instanceof ChatMessage) {
-					ChatMessage castMessage = (ChatMessage)currMessage;
-					
-					if(!chatLog.contains(castMessage)) {
-						chatLog.add(castMessage);
-					}
+
+	// Iterates through all the messages in the master chat log (AKA: Master Client
+	// Message list)
+	// Casts them to messages, if applicable, and adds them to the chatLog (provided
+	// that the castMessage is not in the chatLog already!)
+
+	private void updateChatState(ChatMessage message) {
+
+		synchronized (this.chatState) {
+
+			if (this.chatState != null && this.chatState instanceof ChatState) {
+				this.chatState.addMessage(message);
+
+				if (this.debugFlag == true) {
+					System.out.println("pc-Server| Chat state updated! Added message: \n" + message.toString());
+				}
+			} else {
+				if (this.debugFlag == true) {
+					System.out.println("pc-Server| Failed to update chat state!");
 				}
 			}
-			//TODO: You will likely encounter future issues with messages appearing out of order
-			// Consider adding a sort() call here, with comparator. 
 		}
+
 	}
 
 	public static void main(String[] args) {
+
 		Thread s = Thread.currentThread();
 		s.setName("PC-Server Main");
-		
+
 		Server initServ = new Server();
 
 		Scanner userInp = new Scanner(System.in);
-		
+
 		boolean stopFlag = false;
 
 		Thread initThread = new Thread(initServ);
@@ -309,28 +336,47 @@ public class Server implements Runnable {
 
 		initThread.start();
 		
-		while(stopFlag == false) {
-			System.out.println(initServ.getChatState());
-			System.out.println("Type 'x' to exit! ");
+		System.out.println("---CHAT---");
+		System.out.println(initServ.getChatState());
+		System.out.println("---ENDCHAT---");
+
+		while (stopFlag == false) {
+			System.out.println("Type 'x' to exit!");
+			System.out.println("Type 'r' to refresh!");
 			System.out.println("Enter message to send to clients:");
-			
+
 			String message = userInp.nextLine();
-			
-			if(message.compareTo("x") == 0) {
-				
+
+			if (message.compareTo("x") == 0) {
+
 				stopFlag = true;
-				
+
 				initServ.servTransponder.stopAll();
-				
+
 				break;
 			}
 
-			initServ.sendChatMessage(message);
+			switch (message) {
+			case "r":
+				System.out.println("---CHAT---");
+				System.out.println(initServ.getChatState());
+				System.out.println("---ENDCHAT---");
+				break;
+			case "x":
+				System.out.println("Exiting PlatChat Server!");
+				stopFlag = true;
+				break;
+			default:
+				initServ.sendChatMessage(message);
+			}
+
+
 		}
 
 	}
 
 	public void menuPrompt() {
+
 		String intro = "PlatChat server interface. \n";
 		Scanner inpScanner = new Scanner(System.in);
 
@@ -387,20 +433,16 @@ public class Server implements Runnable {
 	}
 
 	// Retrieves last messages from Transponder and orders them by date/timestamp
-	public ArrayList<ClientMessage<?>> getLastChatLog() {
-		ArrayList<ClientMessage<?>> result = null;
-
-		MessageDateComparator dateComp = new MessageDateComparator();
-
-		result = this.servTransponder.getServerRecievedCMsOrdered(dateComp);
-
-		System.out.println("PlatChatServer recieved message:" + result.toString());
-
-		return result;
+	public String printLastChatLog() {
+		return this.chatState.toString();
 	}
-	
+
 	public ChatState getChatState() {
 		return this.chatState;
+	}
+
+	public TransponderTCP getTransponder() {
+		return this.servTransponder;
 	}
 
 	public String formatPrintLastMessages(ArrayList<ClientMessage<?>> inpList) {
@@ -411,16 +453,27 @@ public class Server implements Runnable {
 		return result;
 
 	}
-	
+
 	public void setConsole(pcConsole.Console inpConsole) {
 		this.mainConsole = inpConsole;
 	}
 
+	public void setDebugFlag(boolean flag) {
+		this.debugFlag = flag;
+	}
+
 	@Override
 	public void run() {
+
+		// If we (for whatever reason) have a thread assigned, new, and not started -
+		// start the thread!
+		if (this.transponderThread instanceof Thread && this.transponderThread.getState() == Thread.State.NEW) {
+			this.transponderThread.start();
+		}
+
 		// listen() has an internal while-loop
 		listen();
-		
+
 		// Assuming we are done listening, close the transponder object.
 		this.servTransponder.closeServerIO();
 	}

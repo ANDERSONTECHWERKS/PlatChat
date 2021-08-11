@@ -107,11 +107,13 @@ public class Tests extends TestCase{
 		// End standard socket init block
 		
 		Server testServ = new Server(servSock,true);
+		testServ.setDebugFlag(true);
 		Thread servThread = new Thread(testServ);
 		
 		servThread.start();
 		
 		Client testClient = new Client(clientSock,true);
+		testClient.setDebugFlag(true);
 		Thread clientThread = new Thread(testClient);
 		
 		clientThread.start();
@@ -119,10 +121,33 @@ public class Tests extends TestCase{
 		testClient.sendChatMessage("Radical Bread");
 		testServ.sendChatMessage("Butthead Prime");
 		
-		System.out.println("Last testServ ChatLog returns:\n"+testServ.getLastChatLog().toString());
-		System.out.println("Last testClient debutLastClientMessage returns:\n"+testClient.debugGetLastClientMessage());
-		System.out.println("Last testClient getLatestChatState returns:\n"+testClient.getLatestChatState());
+		ChatState servCS = testServ.getChatState();
+		ChatState clientCS = testClient.getChatState();
 
+		System.out.println(testClient.getTransponder().getStatus());
+		System.out.println("*--Last testServ ChatLog returned--*\n"+servCS.toString());
+		System.out.println("*--Last testClient ChatLog returned--*\n"+clientCS.toString());
+
+	}
+	
+	@Test
+	public void testConsole() {
+		
+		// Begin standard socket init block
+		InetSocketAddress lb6969 =  new InetSocketAddress(InetAddress.getLoopbackAddress(),6969);
+		InetSocketAddress lb7000 =  new InetSocketAddress(InetAddress.getLoopbackAddress(),7000);
+		ServerSocket servSock = null;
+		Socket clientSock = null;
+		
+		try {
+			servSock = new ServerSocket(6969,1,lb6969.getAddress());
+			clientSock = new Socket(lb6969.getAddress(),6969,lb7000.getAddress(),7000);
+
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		// End standard socket init block
 		
 	}
 }

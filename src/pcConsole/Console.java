@@ -66,7 +66,7 @@ public class Console {
 				break;
 			case "getMasterList":
 				if(this.mode == 1) {
-					System.out.println(this.initServer.getLastChatLog().toString());
+					System.out.println(this.initServer.printLastChatLog().toString());
 				}
 				
 				if(this.mode == 2) {

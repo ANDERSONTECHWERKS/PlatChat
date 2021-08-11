@@ -20,14 +20,16 @@ public class Client implements Runnable{
 	private TransponderTCP clientTransp = null;
 	private Thread transpThread = null;
 	
-	pcConsole.Console mainConsole = null;
+	private pcConsole.Console mainConsole = null;
 
 	private int battleTagCode = 0;
 	private String battleTag = "";
 	
 	private Scanner inpScanner = null;
 	private ChatState chatState = null;
+	
 	private boolean stopFlag;
+	private boolean debugFlag;
 	
 	public Client() {
 		menuPrompt();
@@ -56,30 +58,41 @@ public class Client implements Runnable{
 		Client initClient = new Client();
 		
 		Thread clientThread = new Thread(initClient);
+
 		clientThread.setName("PC-Client");
 		
 		clientThread.start();
 		
-		while(stopFlag == false) {
+		if(initClient.getChatState() != null) {
+			System.out.println("---CHAT---");
 			System.out.println(initClient.getChatState());
+			System.out.println("---ENDCHAT---");
+		}
+
+		while(stopFlag == false) {
 			System.out.println("Type 'x' to exit! ");
+			System.out.println("Type 'r' to refresh!");
 			System.out.println("Enter message to send to chat:");
 			
 			String message = userInp.nextLine();
 			
-			if(message.compareTo("x") == 0) {
-				
-				stopFlag = true;
-				
-				initClient.clientTransp.stopAll();
-				
+			switch (message) {
+			case "r":
+				System.out.println("---CHAT---");
+				System.out.println(initClient.getChatState());
+				System.out.println("---ENDCHAT---");				
 				break;
+			case "x":
+				System.out.println("Exiting PlatChat Server!");
+				stopFlag = true;
+				break;
+			default:
+				initClient.sendChatMessage(message);
 			}
-
-			initClient.sendChatMessage(message);
 		}
 		
 	}
+	
 	
 	public void menuPrompt() {
 		
@@ -217,23 +230,37 @@ public class Client implements Runnable{
 		if(this.transpThread == null) {
 			throw new IllegalStateException("pcClient| Transponder thread cannot be null!");
 		}
-		
-		this.transpThread.start();
+			this.transpThread.start();
+
 		
 		while(this.stopFlag == false) {
+			
+			// Condition where our Transponder tells us there is a new ServerMessage
 			if(this.clientTransp.getNewSMFlag()) {
 				
-				// Need to fix transponder so we can pull the recieved ServerMessages
+				// Need to fix transponder so we can pull the received ServerMessages
 				try {
+
 					ServerMessage<?> inputSM = null;
 
 					inputSM = this.clientTransp.getLastSM();
-					
+
 					// If the server sends us a ChatState: Accept it, and print!
 					if(inputSM instanceof ChatState) {
 
-						this.chatState = (ChatState)inputSM;
-						this.mainConsole.printToConsole(this.chatState.toString());
+						ChatState inputCS = (ChatState)inputSM;
+						
+						if(this.mainConsole != null && this.mainConsole instanceof pcConsole.Console) {
+							this.mainConsole.printToConsole(inputCS.toString());
+						}
+
+							this.chatState = inputCS;
+						
+						
+						if(this.debugFlag == true) {
+							System.out.println("pc-Client| Received chat state! Current state is: \n" + inputCS.toString());
+						}
+
 					}
 				} catch (InterruptedException e) {
 					// TODO Auto-generated catch block
@@ -241,15 +268,19 @@ public class Client implements Runnable{
 				}
 			}
 			
+			// Condition where our Transponder tells us there is a new ClientMessage
 			if(this.clientTransp.getNewCMFlag()) {
+				
 				ClientMessage<?> inputCM = null;
 				
 				try {
-					// TODO: At the moment, this simply prints recieved ClientMessages to Console
+					// TODO: At the moment, this simply prints received ClientMessages to Console
 					// Do something better with it in the future?
 					inputCM = this.clientTransp.getLastCM();
 					
-					this.mainConsole.printToConsole(inputCM.toString());
+					if(this.mainConsole != null && this.mainConsole instanceof pcConsole.Console) {
+						this.mainConsole.printToConsole(inputCM.toString());
+					}
 					
 				} catch (InterruptedException e) {
 					// TODO Auto-generated catch block
@@ -265,7 +296,7 @@ public class Client implements Runnable{
 			
 			ChatMessage message = new ChatMessage(messageInp);
 			
-			this.clientTransp.sendClientMessage(message);
+			this.clientTransp.sendClientMessageToAll(message);
 		}
 	}
 	
@@ -273,23 +304,32 @@ public class Client implements Runnable{
 		return this.chatState;
 	}
 	
-	public ChatState getLatestChatState() {
-		return this.chatState;
+	public TransponderTCP getTransponder() {
+		return this.clientTransp;
 	}
+	
 	
 	public String printChatState(ChatState input) {
 		return input.toString();
+	}
+	
+	public void setDebugFlag(boolean flag) {
+		this.debugFlag = flag;
 	}
 	
 	public String debugGetLastClientMessage() {
 		String result = "";
 		
 		try {
+			
 			result += this.clientTransp.getLastCM() + "\n";
+			
 		} catch (InterruptedException e) {
+			
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
+		
 		return result;
 	}
 	

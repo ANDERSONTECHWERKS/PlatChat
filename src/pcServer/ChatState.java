@@ -7,7 +7,7 @@ import java.util.Date;
 import java.util.concurrent.PriorityBlockingQueue;
 
 import transponderTCP.ClientMessage;
-import transponderTCP.MessageDateComparator;
+import transponderTCP.MessageDateComparatorCM;
 import transponderTCP.ServerMessage;
 
 public class ChatState extends ServerMessage<ArrayList<ChatMessage>> implements Serializable{
@@ -39,24 +39,38 @@ public class ChatState extends ServerMessage<ArrayList<ChatMessage>> implements 
 		
 	}
 	
-	public void addMessage(ChatMessage inpMessage) {
-		MessageDateComparator dateComparator = new MessageDateComparator();
-		
-		this.getPayload().add(inpMessage);
-		this.getPayload().sort(dateComparator);
+	public synchronized void addMessage(ChatMessage inpMessage) {
+
+		if(!this.getPayload().contains(inpMessage)) {
+			this.getPayload().add(inpMessage);
+		}
+
+		this.sortChatLogByDate();
 	}
 	
 	public ArrayList<ChatMessage> getChatLog(){
 		return this.getPayload();
 	}
 	
-	private void sortChatLog(Comparator<ChatMessage> comp) {
-		this.getPayload().sort(comp);
+	private void sortChatLogByDate() {
+		MessageDateComparatorCM dateComparator = new MessageDateComparatorCM();
+
+		this.getPayload().sort(dateComparator);
+	}
+	
+	public String printSortedByComparator(Comparator<ChatMessage> comp) {
+		
+		ArrayList<ChatMessage> unsortCL = this.getPayload();
+
+		unsortCL.sort(comp);
+		
+		return unsortCL.toString();
+		
 	}
 	
 	@Override
-	public String toString() {
-		MessageDateComparator dateComparator = new MessageDateComparator();
+	public synchronized String toString() {
+		MessageDateComparatorCM dateComparator = new MessageDateComparatorCM();
 		
 		// Sort the chatLog right before presentation
 		
